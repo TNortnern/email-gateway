@@ -236,7 +236,9 @@ const createForm = ref({
   defaultFromName: ''
 })
 
-const { data: keys, pending, refresh } = await useFetch('/api/internal/app-keys')
+const { data: keysData, pending, refresh } = useFetch('/api/internal/app-keys')
+
+const keys = computed(() => keysData.value?.keys || [])
 
 const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('en-US', {
