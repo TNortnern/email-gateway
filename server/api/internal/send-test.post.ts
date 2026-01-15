@@ -19,9 +19,9 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
 
   // Get the app key record
-  const appKeyRecord = db.getAppKeyById(body.keyId)
+  const appKeyRecord = await db.getAppKeyById(body.keyId)
 
-  if (!appKeyRecord || appKeyRecord.revoked_at) {
+  if (!appKeyRecord || appKeyRecord.revokedAt) {
     throw createError({
       statusCode: 404,
       statusMessage: 'Not Found',
@@ -30,8 +30,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Build the Brevo request
-  const fromEmail = appKeyRecord.default_from_email || config.public.defaultFromEmail
-  const fromName = appKeyRecord.default_from_name || config.public.defaultFromName
+  const fromEmail = appKeyRecord.defaultFromEmail || config.public.defaultFromEmail
+  const fromName = appKeyRecord.defaultFromName || config.public.defaultFromName
 
   // Process HTML with template if specified
   let finalHtml = body.html
@@ -62,21 +62,21 @@ export default defineEventHandler(async (event) => {
   // Create message record
   const messageRecordId = generateId()
 
-  const newMessage = db.insertMessage({
+  const newMessage = await db.insertMessage({
     id: messageRecordId,
-    app_key_id: appKeyRecord.id,
-    message_id: null,
-    to_addresses: JSON.stringify(body.to),
-    cc_addresses: null,
-    bcc_addresses: null,
-    from_email: fromEmail,
-    from_name: fromName || null,
+    appKeyId: appKeyRecord.id,
+    messageId: null,
+    toAddresses: JSON.stringify(body.to),
+    ccAddresses: null,
+    bccAddresses: null,
+    fromEmail,
+    fromName: fromName || null,
     subject: body.subject,
-    template_id: null,
+    templateId: null,
     tags: JSON.stringify(['test-email']),
     status: 'pending',
-    provider_response: null,
-    idempotency_key: null
+    providerResponse: null,
+    idempotencyKey: null
   })
 
   // Send via Brevo
@@ -84,10 +84,10 @@ export default defineEventHandler(async (event) => {
 
   if (result.success) {
     // Update message record with success
-    db.updateMessage(messageRecordId, {
-      message_id: result.data.messageId,
+    await db.updateMessage(messageRecordId, {
+      messageId: result.data.messageId,
       status: 'queued',
-      provider_response: JSON.stringify(result.data)
+      providerResponse: JSON.stringify(result.data)
     })
 
     return {
@@ -98,9 +98,9 @@ export default defineEventHandler(async (event) => {
     }
   } else {
     // Update message record with failure
-    db.updateMessage(messageRecordId, {
+    await db.updateMessage(messageRecordId, {
       status: 'failed',
-      provider_response: JSON.stringify(result.error)
+      providerResponse: JSON.stringify(result.error)
     })
 
     throw createError({

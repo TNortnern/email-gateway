@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
 
   // Get the message
-  const message = db.getMessageById(id!)
+  const message = await db.getMessageById(id!)
 
   if (!message) {
     throw createError({
@@ -28,20 +28,20 @@ export default defineEventHandler(async (event) => {
 
   return {
     id: message.id,
-    messageId: message.message_id,
-    to: JSON.parse(message.to_addresses),
-    cc: message.cc_addresses ? JSON.parse(message.cc_addresses) : null,
-    bcc: message.bcc_addresses ? JSON.parse(message.bcc_addresses) : null,
+    messageId: message.messageId,
+    to: JSON.parse(message.toAddresses),
+    cc: message.ccAddresses ? JSON.parse(message.ccAddresses) : null,
+    bcc: message.bccAddresses ? JSON.parse(message.bccAddresses) : null,
     from: {
-      email: message.from_email,
-      name: message.from_name
+      email: message.fromEmail,
+      name: message.fromName
     },
     subject: message.subject,
-    templateId: message.template_id,
+    templateId: message.templateId,
     tags: message.tags ? JSON.parse(message.tags) : [],
     status: message.status,
-    providerResponse: message.provider_response ? JSON.parse(message.provider_response) : null,
-    idempotencyKey: message.idempotency_key,
-    createdAt: message.created_at
+    providerResponse: message.providerResponse ? JSON.parse(message.providerResponse) : null,
+    idempotencyKey: message.idempotencyKey,
+    createdAt: message.createdAt
   }
 })

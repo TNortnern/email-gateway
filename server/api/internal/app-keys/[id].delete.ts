@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
 
   // Revoke the key (soft delete)
-  const success = db.revokeAppKey(id!)
+  const success = await db.revokeAppKey(id!)
 
   if (!success) {
     throw createError({

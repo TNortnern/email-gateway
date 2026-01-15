@@ -36,15 +36,15 @@ export default defineEventHandler(async (event) => {
   const id = generateId()
 
   // Insert the new key
-  db.insertAppKey({
+  await db.insertAppKey({
     id,
     name,
-    key_hash: keyHash,
-    key_prefix: keyPrefix,
-    default_from_name: defaultFromName || null,
-    default_from_email: defaultFromEmail || null,
+    keyHash,
+    keyPrefix,
+    defaultFromName: defaultFromName || null,
+    defaultFromEmail: defaultFromEmail || null,
     tags: tags ? JSON.stringify(tags) : null,
-    revoked_at: null
+    revokedAt: null
   })
 
   setResponseStatus(event, 201)

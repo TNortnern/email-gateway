@@ -1,186 +1,164 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
-import { join } from 'path'
+import { eq, and, desc, lt, sql } from 'drizzle-orm'
+import { db } from '../db'
+import { appKeys, messages, type AppKey, type Message, type InsertAppKey, type InsertMessage } from '../db/schema'
 
-// Get the project root directory
-const projectRoot = process.cwd()
-
-// Ensure data directory exists
-const dataDir = join(projectRoot, 'data')
-if (!existsSync(dataDir)) {
-  mkdirSync(dataDir, { recursive: true })
-}
-
-const dbPath = join(dataDir, 'gateway.json')
-
-// Types
-export interface AppKey {
-  id: string
-  name: string
-  key_hash: string
-  key_prefix: string
-  default_from_name: string | null
-  default_from_email: string | null
-  tags: string | null
-  revoked_at: string | null
-  created_at: string
-}
-
-export interface Message {
-  id: string
-  app_key_id: string
-  message_id: string | null
-  to_addresses: string
-  cc_addresses: string | null
-  bcc_addresses: string | null
-  from_email: string
-  from_name: string | null
-  subject: string | null
-  template_id: number | null
-  tags: string | null
-  status: string
-  provider_response: string | null
-  idempotency_key: string | null
-  created_at: string
-}
-
-interface Database {
-  app_keys: AppKey[]
-  messages: Message[]
-}
-
-// Initialize database file if it doesn't exist
-if (!existsSync(dbPath)) {
-  const initialData: Database = {
-    app_keys: [],
-    messages: []
-  }
-  writeFileSync(dbPath, JSON.stringify(initialData, null, 2))
-}
-
-// Load database
-function loadDb(): Database {
-  try {
-    const data = readFileSync(dbPath, 'utf-8')
-    return JSON.parse(data)
-  } catch (error) {
-    return { app_keys: [], messages: [] }
-  }
-}
-
-// Save database
-function saveDb(data: Database) {
-  writeFileSync(dbPath, JSON.stringify(data, null, 2))
-}
+// Re-export types for compatibility
+export type { AppKey, Message }
 
 // Database operations
-export const db = {
+export const dbOps = {
   // App keys operations
-  insertAppKey(key: Omit<AppKey, 'created_at'>) {
-    const data = loadDb()
-    const newKey: AppKey = {
-      ...key,
-      created_at: new Date().toISOString()
-    }
-    data.app_keys.push(newKey)
-    saveDb(data)
+  async insertAppKey(key: Omit<InsertAppKey, 'createdAt'>) {
+    const [newKey] = await db
+      .insert(appKeys)
+      .values({
+        ...key,
+        createdAt: new Date().toISOString(),
+      })
+      .returning()
+
     return newKey
   },
 
-  getAppKeyByHash(keyHash: string): AppKey | undefined {
-    const data = loadDb()
-    return data.app_keys.find(k => k.key_hash === keyHash && !k.revoked_at)
+  async getAppKeyByHash(keyHash: string): Promise<AppKey | undefined> {
+    const [key] = await db
+      .select()
+      .from(appKeys)
+      .where(and(eq(appKeys.keyHash, keyHash), sql`${appKeys.revokedAt} IS NULL`))
+      .limit(1)
+
+    return key
   },
 
-  getAppKeyById(id: string): AppKey | undefined {
-    const data = loadDb()
-    return data.app_keys.find(k => k.id === id)
+  async getAppKeyById(id: string): Promise<AppKey | undefined> {
+    const [key] = await db
+      .select()
+      .from(appKeys)
+      .where(eq(appKeys.id, id))
+      .limit(1)
+
+    return key
   },
 
-  getAllAppKeys(): AppKey[] {
-    const data = loadDb()
-    return data.app_keys.sort((a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )
+  async getAllAppKeys(): Promise<AppKey[]> {
+    const keys = await db
+      .select()
+      .from(appKeys)
+      .orderBy(desc(appKeys.createdAt))
+
+    return keys
   },
 
-  revokeAppKey(id: string): boolean {
-    const data = loadDb()
-    const key = data.app_keys.find(k => k.id === id && !k.revoked_at)
-    if (key) {
-      key.revoked_at = new Date().toISOString()
-      saveDb(data)
-      return true
-    }
-    return false
+  async revokeAppKey(id: string): Promise<boolean> {
+    const result = await db
+      .update(appKeys)
+      .set({ revokedAt: new Date().toISOString() })
+      .where(and(eq(appKeys.id, id), sql`${appKeys.revokedAt} IS NULL`))
+      .returning()
+
+    return result.length > 0
   },
 
   // Message operations
-  insertMessage(message: Omit<Message, 'created_at'>) {
-    const data = loadDb()
-    const newMessage: Message = {
-      ...message,
-      created_at: new Date().toISOString()
-    }
-    data.messages.push(newMessage)
-    saveDb(data)
+  async insertMessage(message: Omit<InsertMessage, 'createdAt'>) {
+    const [newMessage] = await db
+      .insert(messages)
+      .values({
+        ...message,
+        createdAt: new Date().toISOString(),
+      })
+      .returning()
+
     return newMessage
   },
 
-  getMessageByIdempotencyKey(appKeyId: string, idempotencyKey: string): Message | undefined {
-    const data = loadDb()
-    return data.messages.find(m =>
-      m.app_key_id === appKeyId && m.idempotency_key === idempotencyKey
-    )
+  async getMessageByIdempotencyKey(appKeyId: string, idempotencyKey: string): Promise<Message | undefined> {
+    const [message] = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.appKeyId, appKeyId),
+          eq(messages.idempotencyKey, idempotencyKey)
+        )
+      )
+      .limit(1)
+
+    return message
   },
 
-  getMessageById(id: string): Message | undefined {
-    const data = loadDb()
-    return data.messages.find(m => m.id === id || m.message_id === id)
+  async getMessageById(id: string): Promise<Message | undefined> {
+    const [message] = await db
+      .select()
+      .from(messages)
+      .where(sql`${messages.id} = ${id} OR ${messages.messageId} = ${id}`)
+      .limit(1)
+
+    return message
   },
 
-  getMessagesByAppKey(appKeyId: string, limit: number = 50, cursor?: string): { messages: Message[], hasMore: boolean } {
-    const data = loadDb()
-    let messages = data.messages
-      .filter(m => m.app_key_id === appKeyId)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  async getMessagesByAppKey(
+    appKeyId: string,
+    limit: number = 50,
+    cursor?: string
+  ): Promise<{ messages: Message[]; hasMore: boolean }> {
+    const query = db
+      .select()
+      .from(messages)
+      .where(
+        cursor
+          ? and(
+              eq(messages.appKeyId, appKeyId),
+              lt(messages.createdAt, cursor)
+            )
+          : eq(messages.appKeyId, appKeyId)
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(limit + 1) // Fetch one extra to check if there are more
 
-    if (cursor) {
-      messages = messages.filter(m => new Date(m.created_at) < new Date(cursor))
-    }
+    const results = await query
 
-    const hasMore = messages.length > limit
+    const hasMore = results.length > limit
+    const messagesList = hasMore ? results.slice(0, limit) : results
+
     return {
-      messages: messages.slice(0, limit),
-      hasMore
+      messages: messagesList,
+      hasMore,
     }
   },
 
-  getAllMessages(limit: number = 50, cursor?: string): { messages: Message[], hasMore: boolean } {
-    const data = loadDb()
-    let messages = data.messages
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  async getAllMessages(
+    limit: number = 50,
+    cursor?: string
+  ): Promise<{ messages: Message[]; hasMore: boolean }> {
+    const query = db
+      .select()
+      .from(messages)
+      .where(cursor ? lt(messages.createdAt, cursor) : undefined)
+      .orderBy(desc(messages.createdAt))
+      .limit(limit + 1) // Fetch one extra to check if there are more
 
-    if (cursor) {
-      messages = messages.filter(m => new Date(m.created_at) < new Date(cursor))
-    }
+    const results = await query
 
-    const hasMore = messages.length > limit
+    const hasMore = results.length > limit
+    const messagesList = hasMore ? results.slice(0, limit) : results
+
     return {
-      messages: messages.slice(0, limit),
-      hasMore
+      messages: messagesList,
+      hasMore,
     }
   },
 
-  updateMessage(id: string, updates: Partial<Message>): boolean {
-    const data = loadDb()
-    const message = data.messages.find(m => m.id === id)
-    if (message) {
-      Object.assign(message, updates)
-      saveDb(data)
-      return true
-    }
-    return false
-  }
+  async updateMessage(id: string, updates: Partial<Message>): Promise<boolean> {
+    const result = await db
+      .update(messages)
+      .set(updates)
+      .where(eq(messages.id, id))
+      .returning()
+
+    return result.length > 0
+  },
 }
 
-export default db
+// Default export for backwards compatibility
+export default dbOps

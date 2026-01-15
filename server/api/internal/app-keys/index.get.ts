@@ -14,19 +14,19 @@ export default defineEventHandler(async (event) => {
   }
 
   // Get all app keys
-  const keys = db.getAllAppKeys()
+  const keys = await db.getAllAppKeys()
 
   return {
     keys: keys.map(k => ({
       id: k.id,
       name: k.name,
-      keyPrefix: k.key_prefix,
-      defaultFromName: k.default_from_name,
-      defaultFromEmail: k.default_from_email,
+      keyPrefix: k.keyPrefix,
+      defaultFromName: k.defaultFromName,
+      defaultFromEmail: k.defaultFromEmail,
       tags: k.tags ? JSON.parse(k.tags) : [],
-      isRevoked: !!k.revoked_at,
-      revokedAt: k.revoked_at,
-      createdAt: k.created_at
+      isRevoked: !!k.revokedAt,
+      revokedAt: k.revokedAt,
+      createdAt: k.createdAt
     }))
   }
 })

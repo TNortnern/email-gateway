@@ -18,24 +18,24 @@ export default defineEventHandler(async (event) => {
   const limit = Math.min(parseInt(query.limit as string) || 50, 100)
   const cursor = query.cursor as string | undefined
 
-  const { messages, hasMore } = db.getAllMessages(limit, cursor)
+  const { messages, hasMore } = await db.getAllMessages(limit, cursor)
 
-  const nextCursor = hasMore && messages.length > 0 ? messages[messages.length - 1]?.created_at : undefined
+  const nextCursor = hasMore && messages.length > 0 ? messages[messages.length - 1]?.createdAt : undefined
 
   return {
     messages: messages.map(m => ({
       id: m.id,
-      messageId: m.message_id,
-      to: JSON.parse(m.to_addresses),
+      messageId: m.messageId,
+      to: JSON.parse(m.toAddresses),
       from: {
-        email: m.from_email,
-        name: m.from_name
+        email: m.fromEmail,
+        name: m.fromName
       },
       subject: m.subject,
-      templateId: m.template_id,
+      templateId: m.templateId,
       tags: m.tags ? JSON.parse(m.tags) : [],
       status: m.status,
-      createdAt: m.created_at
+      createdAt: m.createdAt
     })),
     cursor: nextCursor
   }

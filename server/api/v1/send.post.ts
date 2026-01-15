@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   const keyHash = hashKey(appKey)
 
   // Look up the app key
-  const appKeyRecord = db.getAppKeyByHash(keyHash)
+  const appKeyRecord = await db.getAppKeyByHash(keyHash)
 
   if (!appKeyRecord) {
     throw createError({
@@ -50,12 +50,12 @@ export default defineEventHandler(async (event) => {
 
   // Check for idempotency
   if (request.idempotencyKey) {
-    const existingMessage = db.getMessageByIdempotencyKey(appKeyRecord.id, request.idempotencyKey)
+    const existingMessage = await db.getMessageByIdempotencyKey(appKeyRecord.id, request.idempotencyKey)
 
     if (existingMessage) {
       // Return the existing response
       return {
-        messageId: existingMessage.message_id || existingMessage.id,
+        messageId: existingMessage.messageId || existingMessage.id,
         status: existingMessage.status,
         provider: 'brevo',
         cached: true
@@ -80,8 +80,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Build the Brevo request
-  const fromEmail = request.from?.email || appKeyRecord.default_from_email || config.public.defaultFromEmail
-  const fromName = request.from?.name || appKeyRecord.default_from_name || config.public.defaultFromName
+  const fromEmail = request.from?.email || appKeyRecord.defaultFromEmail || config.public.defaultFromEmail
+  const fromName = request.from?.name || appKeyRecord.defaultFromName || config.public.defaultFromName
 
   // Process HTML with template if specified
   let finalHtml = request.html
@@ -117,21 +117,21 @@ export default defineEventHandler(async (event) => {
   // Create message record
   const messageRecordId = generateId()
 
-  const newMessage = db.insertMessage({
+  const newMessage = await db.insertMessage({
     id: messageRecordId,
-    app_key_id: appKeyRecord.id,
-    message_id: null,
-    to_addresses: JSON.stringify(request.to),
-    cc_addresses: request.cc ? JSON.stringify(request.cc) : null,
-    bcc_addresses: request.bcc ? JSON.stringify(request.bcc) : null,
-    from_email: fromEmail,
-    from_name: fromName || null,
+    appKeyId: appKeyRecord.id,
+    messageId: null,
+    toAddresses: JSON.stringify(request.to),
+    ccAddresses: request.cc ? JSON.stringify(request.cc) : null,
+    bccAddresses: request.bcc ? JSON.stringify(request.bcc) : null,
+    fromEmail,
+    fromName: fromName || null,
     subject: request.subject || null,
-    template_id: request.templateId || null,
+    templateId: request.templateId || null,
     tags: request.tags ? JSON.stringify(request.tags) : null,
     status: 'pending',
-    provider_response: null,
-    idempotency_key: request.idempotencyKey || null
+    providerResponse: null,
+    idempotencyKey: request.idempotencyKey || null
   })
 
   // Send via Brevo
@@ -139,10 +139,10 @@ export default defineEventHandler(async (event) => {
 
   if (result.success) {
     // Update message record with success
-    db.updateMessage(messageRecordId, {
-      message_id: result.data.messageId,
+    await db.updateMessage(messageRecordId, {
+      messageId: result.data.messageId,
       status: 'queued',
-      provider_response: JSON.stringify(result.data)
+      providerResponse: JSON.stringify(result.data)
     })
 
     setResponseStatus(event, 201)
@@ -153,9 +153,9 @@ export default defineEventHandler(async (event) => {
     }
   } else {
     // Update message record with failure
-    db.updateMessage(messageRecordId, {
+    await db.updateMessage(messageRecordId, {
       status: 'failed',
-      provider_response: JSON.stringify(result.error)
+      providerResponse: JSON.stringify(result.error)
     })
 
     // Map Brevo errors to appropriate status codes

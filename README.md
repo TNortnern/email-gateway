@@ -293,8 +293,9 @@ print('Message ID:', response.json()['messageId'])
 ### Tech Stack
 
 - **Framework**: Nuxt 3 (with Nitro server)
-- **UI**: Nuxt UI (TailwindCSS + Headless UI)
-- **Database**: SQLite (via better-sqlite3)
+- **UI**: TailwindCSS + Radix Vue
+- **Database**: PostgreSQL with Drizzle ORM
+- **Migrations**: Drizzle Kit (Django-like strict migrations)
 - **Email Provider**: Brevo (formerly Sendinblue)
 - **Validation**: Zod
 
@@ -335,11 +336,73 @@ print('Message ID:', response.json()['messageId'])
 - **HTTPS**: Use HTTPS in production
 - **Rate Limiting**: Add rate limiting for production (not included in v1)
 
+## Database Migrations
+
+This project uses Drizzle ORM with PostgreSQL and implements a **strict, Django-like migration system** for safe schema changes.
+
+### Migration Philosophy
+
+- **Data Safety First**: Migrations are validated to prevent data loss
+- **Fail-Fast**: Dangerous operations (DROP TABLE, DROP COLUMN, TRUNCATE, DELETE) are blocked
+- **CI/CD Ready**: Failed migrations = failed deployment
+- **Transactional**: All migrations run in transactions
+- **Audit Trail**: Full logging of all migration operations
+
+### Migration Commands
+
+```bash
+# Generate a new migration after schema changes
+npm run db:generate
+
+# Check pending migrations (CI/CD safe - read-only)
+npm run db:migrate:check
+
+# Apply pending migrations to database
+npm run db:migrate
+
+# Open Drizzle Studio (database GUI)
+npm run db:studio
+```
+
+### CI/CD Integration
+
+Add this to your deployment pipeline:
+
+```yaml
+# Example for Railway/Vercel/etc.
+build:
+  - npm install
+  - npm run db:migrate:check  # Validates migrations
+  - npm run db:migrate        # Applies migrations
+  - npm run build             # Build the app
+```
+
+If `db:migrate` fails, the deployment stops automatically - protecting your data.
+
+### Creating Schema Changes
+
+1. Edit `server/db/schema.ts`
+2. Run `npm run db:generate` to create migration
+3. Review the generated SQL in `drizzle/migrations/`
+4. Run `npm run db:migrate` to apply
+5. Commit both schema and migration files
+
+### Blocked Operations
+
+These operations are rejected by the migration validator:
+- `DROP TABLE` - Data loss risk
+- `DROP COLUMN` - Data loss risk
+- `TRUNCATE` - Data loss risk
+- `DELETE FROM` - Data loss risk
+
+To perform these operations, manually review and apply the SQL after careful consideration.
+
 ## Production Deployment
 
 ### Environment Variables
 
 ```env
+DATABASE_URL=postgresql://user:password@host:port/database
 BREVO_API_KEY=xkeysib-...
 DEFAULT_FROM_EMAIL=support@yourdomain.com
 DEFAULT_FROM_NAME=Your Company
@@ -350,6 +413,9 @@ NODE_ENV=production
 ### Build and Start
 
 ```bash
+# Run migrations first
+npm run db:migrate
+
 # Build for production
 npm run build
 
@@ -362,9 +428,10 @@ npm start
 - Use a reverse proxy (nginx, Caddy)
 - Enable HTTPS/TLS
 - Set secure admin password
-- Regular database backups
+- Regular database backups (PostgreSQL dumps)
 - Add rate limiting middleware
 - Monitor Brevo API usage
+- Run migrations before each deployment
 
 ## Future Enhancements (v1.1+)
 
