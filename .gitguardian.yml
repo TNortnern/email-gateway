@@ -1,0 +1,15 @@
+# GitGuardian configuration
+version: 2
+
+# Paths to ignore for secret scanning
+paths-ignore:
+  - pages/docs.vue  # API documentation with example tokens
+  - "**/*.md"       # Markdown documentation files
+  - "**/*.example"  # Example files
+
+# Additional patterns to ignore
+matches-ignore:
+  - name: Example API keys in documentation
+    match: egw_live_abc123xyz789
+  - name: Placeholder tokens
+    match: YOUR_API_KEY
