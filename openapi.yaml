@@ -1,0 +1,400 @@
+openapi: 3.1.0
+info:
+  title: Email Gateway API
+  version: 1.0.0
+  description: |
+    Email Gateway API wraps Brevo transactional email with a stable API for your applications.
+
+    ## Authentication
+    All API endpoints (except /health) require Bearer token authentication.
+
+    ```
+    Authorization: Bearer <app_key>
+    ```
+  contact:
+    email: support@tnorthern.com
+
+servers:
+  - url: http://localhost:3000/v1
+    description: Development server
+  - url: https://api.yourdomain.com/v1
+    description: Production server
+
+tags:
+  - name: Public API
+    description: Public API endpoints for sending emails
+  - name: Internal API
+    description: Internal endpoints for admin UI (requires admin auth)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags:
+        - Public API
+      summary: Health check
+      description: Check API health status
+      security: []
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  /send:
+    post:
+      tags:
+        - Public API
+      summary: Send transactional email
+      description: |
+        Send a transactional email with optional attachments.
+
+        **Required**: Either `subject` + (`text` or `html`) OR `templateId`
+
+        **Defaults**: If `from` is omitted, uses configured default sender
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEmailRequest'
+            examples:
+              simple:
+                summary: Simple text email
+                value:
+                  to:
+                    - email: user@example.com
+                      name: User Name
+                  subject: Welcome
+                  text: Hello! Welcome to our service.
+                  html: <h1>Hello!</h1><p>Welcome to our service.</p>
+              withAttachment:
+                summary: Email with attachment
+                value:
+                  to:
+                    - email: user@example.com
+                  subject: Your Invoice
+                  html: <p>Please find your invoice attached.</p>
+                  attachments:
+                    - name: invoice.pdf
+                      contentBase64: JVBERi0xLjQK...
+                  tags:
+                    - invoice
+                    - billing
+              withTemplate:
+                summary: Using Brevo template
+                value:
+                  to:
+                    - email: user@example.com
+                  templateId: 123
+                  params:
+                    firstName: Ada
+                    orderNumber: "12345"
+      responses:
+        '201':
+          description: Email queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendEmailResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Provider error - Brevo API error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /messages:
+    get:
+      tags:
+        - Public API
+      summary: List sent messages
+      description: Get a paginated list of messages sent by your app
+      parameters:
+        - name: limit
+          in: query
+          description: Number of messages to return (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          description: Pagination cursor from previous response
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageList'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /messages/{messageId}:
+    get:
+      tags:
+        - Public API
+      summary: Get message details
+      description: Get detailed information about a specific message
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          description: Message ID (internal or provider message ID)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Message details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Message not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: API key in format `egw_live_...`
+
+  schemas:
+    SendEmailRequest:
+      type: object
+      required:
+        - to
+      properties:
+        to:
+          type: array
+          description: Recipients
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Recipient'
+        cc:
+          type: array
+          description: CC recipients
+          items:
+            $ref: '#/components/schemas/Recipient'
+        bcc:
+          type: array
+          description: BCC recipients
+          items:
+            $ref: '#/components/schemas/Recipient'
+        from:
+          $ref: '#/components/schemas/Sender'
+        replyTo:
+          $ref: '#/components/schemas/Recipient'
+        subject:
+          type: string
+          description: Email subject (required if not using templateId)
+        text:
+          type: string
+          description: Plain text content
+        html:
+          type: string
+          description: HTML content
+        templateId:
+          type: integer
+          description: Brevo template ID
+        params:
+          type: object
+          description: Template parameters
+          additionalProperties: true
+        tags:
+          type: array
+          description: Tags for categorization
+          items:
+            type: string
+        attachments:
+          type: array
+          description: Email attachments (max 20MB total)
+          items:
+            $ref: '#/components/schemas/Attachment'
+        idempotencyKey:
+          type: string
+          description: Unique key to prevent duplicate sends
+
+    Recipient:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+
+    Sender:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+
+    Attachment:
+      type: object
+      required:
+        - name
+        - contentBase64
+      properties:
+        name:
+          type: string
+          description: Filename
+        contentBase64:
+          type: string
+          description: Base64-encoded file content
+
+    SendEmailResponse:
+      type: object
+      properties:
+        messageId:
+          type: string
+          description: Provider message ID
+        status:
+          type: string
+          enum: [queued, pending, failed]
+        provider:
+          type: string
+          example: brevo
+        cached:
+          type: boolean
+          description: True if response came from idempotency cache
+
+    MessageList:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageSummary'
+        cursor:
+          type: string
+          description: Cursor for next page (if available)
+
+    MessageSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        messageId:
+          type: string
+        to:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recipient'
+        from:
+          $ref: '#/components/schemas/Sender'
+        subject:
+          type: string
+        templateId:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    MessageDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        messageId:
+          type: string
+        to:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recipient'
+        cc:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recipient'
+        bcc:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recipient'
+        from:
+          $ref: '#/components/schemas/Sender'
+        subject:
+          type: string
+        templateId:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+        providerResponse:
+          type: object
+          description: Full response from Brevo
+        idempotencyKey:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+        statusMessage:
+          type: string
+        message:
+          type: string

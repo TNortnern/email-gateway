@@ -1,0 +1,13 @@
+{
+  "to": [{"email": "traynorthern96@gmail.com", "name": "Tray Northern"}],
+  "subject": "Test: Attachments & Images",
+  "html": "<h1>Testing Attachments & Images</h1><p>This email tests:</p><ul><li>Embedded image (data URI)</li><li>PDF attachment</li><li>External image</li></ul><h2>Embedded Image (Base64):</h2><img src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNk+M9Qz0AEYBxVSF+FAP0QBAr8/3tJAAAAAElFTkSuQmCC\" alt=\"Red dot\" /><h2>External Image:</h2><img src=\"https://via.placeholder.com/150/0000FF/808080?text=Test+Image\" alt=\"Test image\" /><p>If you can see both images and have a PDF attachment, everything works!</p>",
+  "text": "Testing Attachments & Images - This email tests embedded images and PDF attachments.",
+  "attachments": [
+    {
+      "name": "test-document.pdf",
+      "contentBase64": "JVBERi0xLjQKJeLjz9MKMyAwIG9iago8PC9GaWx0ZXIvRmxhdGVEZWNvZGUvTGVuZ3RoIDQ5Pj5zdHJlYW0KeJwr5HIK4TI2UzC2NFMwd1Yw0TMEAi5jSx1jRWNzcwVjMwUDQwMFLiMAD0oIvQplbmRzdHJlYW0KZW5kb2JqCjEgMCBvYmoKPDwvVHlwZS9QYWdlL1BhcmVudCA0IDAgUi9Db250ZW50cyAzIDAgUj4+CmVuZG9iagoyIDAgb2JqCjw8L1R5cGUvQ2F0YWxvZy9QYWdlcyA0IDAgUj4+CmVuZG9iago0IDAgb2JqCjw8L1R5cGUvUGFnZXMvQ291bnQgMS9LaWRzWzEgMCBSXT4+CmVuZG9iago1IDAgb2JqCjw8L1R5cGUvRm9udC9TdWJ0eXBlL1R5cGUxL0Jhc2VGb250L0hlbHZldGljYT4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAxNDggMDAwMDAgbiAKMDAwMDAwMDIxMSAwMDAwMCBuIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAyNjAgMDAwMDAgbiAKMDAwMDAwMDMxNyAwMDAwMCBuIAp0cmFpbGVyCjw8L1NpemUgNi9Sb290IDIgMCBSPj4Kc3RhcnR4cmVmCjM5OQolJUVPRgo="
+    }
+  ],
+  "tags": ["test", "attachments", "images"]
+}
