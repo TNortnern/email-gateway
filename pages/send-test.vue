@@ -172,10 +172,12 @@ definePageMeta({
   middleware: 'auth'
 })
 
-const { data: keys, pending: keysLoading } = await useFetch('/api/internal/app-keys')
+const { data: keysData, pending: keysLoading } = useFetch('/api/internal/app-keys')
+
+const keys = computed(() => keysData.value?.keys || [])
 
 const keyOptions = computed(() => {
-  if (!keys.value || !Array.isArray(keys.value) || !keys.value.length) return []
+  if (!keys.value || !keys.value.length) return []
   return keys.value
     .filter((k: any) => !k.isRevoked)
     .map((k: any) => ({
