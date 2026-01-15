@@ -59,7 +59,8 @@ const route = useRoute()
 const navLinks = [
   { to: '/', label: 'API Keys' },
   { to: '/send-test', label: 'Send Test' },
-  { to: '/messages', label: 'Messages' }
+  { to: '/messages', label: 'Messages' },
+  { to: '/docs', label: 'Docs' }
 ]
 
 const isActive = (path: string) => {
