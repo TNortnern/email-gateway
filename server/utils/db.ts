@@ -59,6 +59,23 @@ export const dbOps = {
     return result.length > 0
   },
 
+  async updateAppKey(
+    id: string,
+    updates: {
+      name?: string
+      defaultFromEmail?: string | null
+      defaultFromName?: string | null
+    }
+  ): Promise<AppKey | undefined> {
+    const [updatedKey] = await db
+      .update(appKeys)
+      .set(updates)
+      .where(eq(appKeys.id, id))
+      .returning()
+
+    return updatedKey
+  },
+
   // Message operations
   async insertMessage(message: Omit<InsertMessage, 'createdAt'>) {
     const [newMessage] = await db

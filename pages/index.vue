@@ -80,14 +80,22 @@
             </div>
           </div>
 
-          <Button
-            v-if="!key.isRevoked"
-            variant="destructive"
-            size="sm"
-            @click="revokeKey(key)"
-          >
-            Revoke
-          </Button>
+          <div v-if="!key.isRevoked" class="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              @click="openEditModal(key)"
+            >
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              @click="revokeKey(key)"
+            >
+              Revoke
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
@@ -216,6 +224,64 @@
         </Card>
       </div>
     </div>
+
+    <!-- Edit Modal -->
+    <div
+      v-if="showEditModal"
+      class="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
+      @click="closeEditModal"
+    >
+      <div class="fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%]" @click.stop>
+        <Card class="p-6">
+          <div class="mb-4">
+            <h3 class="text-xl font-bold">Edit API Key</h3>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="text-sm font-medium block mb-2">Key Name *</label>
+              <Input
+                v-model="editForm.name"
+                placeholder="e.g., production-api"
+              />
+            </div>
+
+            <div>
+              <label class="text-sm font-medium block mb-2">Default From Email</label>
+              <Input
+                v-model="editForm.defaultFromEmail"
+                type="email"
+                placeholder="Optional"
+              />
+            </div>
+
+            <div>
+              <label class="text-sm font-medium block mb-2">Default From Name</label>
+              <Input
+                v-model="editForm.defaultFromName"
+                placeholder="Optional"
+              />
+            </div>
+
+            <div v-if="editError" class="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+              {{ editError }}
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 mt-6">
+            <Button variant="outline" @click="closeEditModal">
+              Cancel
+            </Button>
+            <Button
+              :disabled="!editForm.name || editing"
+              @click="saveEdit"
+            >
+              {{ editing ? 'Saving...' : 'Save Changes' }}
+            </Button>
+          </div>
+        </Card>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -230,7 +296,18 @@ const createError = ref('')
 const newKeyData = ref<any>(null)
 const tagsInput = ref('')
 
+const showEditModal = ref(false)
+const editing = ref(false)
+const editError = ref('')
+const editingKey = ref<any>(null)
+
 const createForm = ref({
+  name: '',
+  defaultFromEmail: '',
+  defaultFromName: ''
+})
+
+const editForm = ref({
   name: '',
   defaultFromEmail: '',
   defaultFromName: ''
@@ -308,6 +385,57 @@ const closeCreateModal = () => {
   tagsInput.value = ''
   createError.value = ''
   newKeyData.value = null
+}
+
+const openEditModal = (key: any) => {
+  editingKey.value = key
+  editForm.value = {
+    name: key.name,
+    defaultFromEmail: key.defaultFromEmail || '',
+    defaultFromName: key.defaultFromName || ''
+  }
+  editError.value = ''
+  showEditModal.value = true
+}
+
+const closeEditModal = () => {
+  showEditModal.value = false
+  editingKey.value = null
+  editForm.value = {
+    name: '',
+    defaultFromEmail: '',
+    defaultFromName: ''
+  }
+  editError.value = ''
+}
+
+const saveEdit = async () => {
+  if (!editingKey.value) return
+
+  editing.value = true
+  editError.value = ''
+
+  try {
+    const { data, error } = await useFetch(`/api/internal/app-keys/${editingKey.value.id}`, {
+      method: 'PATCH',
+      body: {
+        name: editForm.value.name,
+        defaultFromEmail: editForm.value.defaultFromEmail || null,
+        defaultFromName: editForm.value.defaultFromName || null
+      }
+    })
+
+    if (error.value) {
+      throw new Error(error.value.message || 'Failed to update key')
+    }
+
+    await refresh()
+    closeEditModal()
+  } catch (e) {
+    editError.value = e instanceof Error ? e.message : 'Failed to update key'
+  } finally {
+    editing.value = false
+  }
 }
 
 const copyToClipboard = async (text: string) => {
