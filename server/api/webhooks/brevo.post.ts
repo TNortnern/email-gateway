@@ -1,10 +1,9 @@
 import db from '~/server/utils/db'
 import { generateId } from '~/server/utils/crypto'
-import { sendEmail } from '~/server/utils/brevo'
+import crypto from 'node:crypto'
 
 const SYSTEM_TAG_APP_KEY_PREFIX = 'egw:appKey:'
 const SYSTEM_TAG_MESSAGE_PREFIX = 'egw:message:'
-const NOTIFICATION_TAG = 'egw:notification'
 
 function parseCsv(value: string): string[] {
   return value
@@ -72,11 +71,16 @@ function formatRecipients(toAddressesJson: string): string {
   }
 }
 
+function signPayload(secret: string, timestamp: string, body: string): string {
+  return crypto
+    .createHmac('sha256', secret)
+    .update(`${timestamp}.${body}`)
+    .digest('hex')
+}
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const expectedToken = (config.brevoWebhookToken || '').toString()
-  const notifyTo = (config.eventNotifyTo || '').toString()
-  const notifyEvents = parseCsv((config.eventNotifyEvents || '').toString()).map(normalizeEventType)
 
   if (!expectedToken) {
     throw createError({
@@ -170,54 +174,61 @@ export default defineEventHandler(async (event) => {
         await db.updateMessage(messageRecordId, { status: 'opened' })
       }
 
-      // Optional notification emails for operational visibility (ex: invoice opened).
-      if (notifyTo && notifyEvents.includes(eventType)) {
-        // De-dupe: only notify on the first open per message.
-        if (eventType !== 'opened' || !wasOpened) {
-          const notifyFromEmail =
-            (config.eventNotifyFromEmail || '').toString() ||
-            message.fromEmail ||
-            config.public.defaultFromEmail
-          const notifyFromName =
-            (config.eventNotifyFromName || '').toString() ||
-            config.public.defaultFromName
+      // Optional per-app forwarding: if the app key has an event webhook configured, forward event.
+      // Brevo webhooks are account-wide, so we rely on gateway tags to scope + route.
+      const appKey = await db.getAppKeyById(appKeyId)
+      if (appKey?.eventWebhookUrl && appKey.eventWebhookSecret) {
+        const allowedEvents = appKey.eventWebhookEvents ? JSON.parse(appKey.eventWebhookEvents) as string[] : []
+        const allowed = allowedEvents.length === 0 || allowedEvents.map(normalizeEventType).includes(eventType)
 
-          const recipientList = parseCsv(notifyTo)
-          // Best effort: link to the gateway UI. In production this should be the public base URL.
-          const baseUrl = getRequestURL(event).origin
-          const messageLink = `${baseUrl}/messages/${message.id}`
-          const subject = `[Email Event] ${eventType.toUpperCase()}: ${message.subject || '(no subject)'}`
+        // De-dupe: only forward the first open per message.
+        if (allowed && (eventType !== 'opened' || !wasOpened)) {
+          const forwardBodyObj = {
+            appKeyId,
+            message: {
+              id: message.id,
+              messageId: message.messageId || message.id,
+              subject: message.subject,
+              from: { email: message.fromEmail, name: message.fromName },
+              to: JSON.parse(message.toAddresses),
+              tags: message.tags ? JSON.parse(message.tags) : [],
+              createdAt: message.createdAt,
+            },
+            event: {
+              type: eventType,
+              occurredAt,
+              recipientEmail,
+              ip,
+              userAgent,
+              providerMessageId,
+            },
+            provider: {
+              name: 'brevo',
+              payload,
+            },
+          }
 
-          const toLine = formatRecipients(message.toAddresses)
-          const eventLine = occurredAt ? new Date(occurredAt).toLocaleString() : 'Unknown time'
+          const forwardBody = JSON.stringify(forwardBodyObj)
+          const timestamp = new Date().toISOString()
+          const signature = signPayload(appKey.eventWebhookSecret, timestamp, forwardBody)
 
-          const html = `
-            <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'; line-height: 1.4; color: #111827;">
-              <h2 style="margin: 0 0 12px; font-size: 18px;">Email event received</h2>
-              <div style="padding: 12px 14px; border: 1px solid #E5E7EB; border-radius: 10px; background: #FFFFFF;">
-                <div style="margin: 0 0 6px;"><strong>Event:</strong> ${eventType}</div>
-                <div style="margin: 0 0 6px;"><strong>Time:</strong> ${eventLine}</div>
-                <div style="margin: 0 0 6px;"><strong>To:</strong> ${toLine || ''}</div>
-                <div style="margin: 0 0 6px;"><strong>Recipient:</strong> ${recipientEmail || ''}</div>
-                <div style="margin: 0 0 6px;"><strong>Subject:</strong> ${message.subject || ''}</div>
-                <div style="margin: 0 0 6px;"><strong>Gateway Message ID:</strong> ${message.messageId || message.id}</div>
-              </div>
-              <p style="margin: 12px 0 0; font-size: 13px; color: #6B7280;">
-                View details in Email Gateway:
-                <a href="${messageLink}" style="color: #2563EB; text-decoration: none;">${messageLink}</a>
-              </p>
-            </div>
-          `.trim()
-
-          // Send via provider directly so these notifications are not treated as gateway messages.
-          await sendEmail(config.brevoApiKey, {
-            sender: { email: notifyFromEmail, name: notifyFromName || undefined },
-            to: recipientList.map(email => ({ email })),
-            subject,
-            htmlContent: html,
-            textContent: `Event: ${eventType}\nTime: ${eventLine}\nTo: ${toLine}\nRecipient: ${recipientEmail || ''}\nSubject: ${message.subject || ''}\nGateway Message ID: ${message.messageId || message.id}\nLink: ${messageLink}`,
-            tags: [NOTIFICATION_TAG, `egw:event:${eventType}`],
-          })
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 5000)
+          try {
+            await fetch(appKey.eventWebhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Email-Gateway-Timestamp': timestamp,
+                'X-Email-Gateway-Signature': signature,
+                'X-Email-Gateway-Event': eventType,
+              },
+              body: forwardBody,
+              signal: controller.signal,
+            })
+          } finally {
+            clearTimeout(timeout)
+          }
         }
       }
 

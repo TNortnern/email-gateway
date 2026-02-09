@@ -9,6 +9,11 @@ export const appKeys = pgTable('app_keys', {
   defaultFromName: text('default_from_name'),
   defaultFromEmail: text('default_from_email'),
   tags: text('tags'), // JSON string
+  // If set, the gateway will forward provider events (opened/clicked/etc) for this app key to the URL.
+  // This enables per-app scoping even when the provider webhook is account-wide.
+  eventWebhookUrl: text('event_webhook_url'),
+  eventWebhookSecret: text('event_webhook_secret'),
+  eventWebhookEvents: text('event_webhook_events'), // JSON string
   revokedAt: timestamp('revoked_at', { mode: 'string' }),
   createdAt: timestamp('created_at', { mode: 'string' }).notNull().defaultNow(),
 }, (table) => ({

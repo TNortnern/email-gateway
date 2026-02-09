@@ -21,6 +21,9 @@ export default defineEventHandler(async (event) => {
     name?: string
     defaultFromEmail?: string
     defaultFromName?: string
+    eventWebhookUrl?: string | null
+    eventWebhookSecret?: string | null
+    eventWebhookEvents?: string | null
   } = {}
 
   if (body.name !== undefined) {
@@ -54,6 +57,47 @@ export default defineEventHandler(async (event) => {
       })
     }
     updates.defaultFromName = body.defaultFromName?.trim() || null
+  }
+
+  if (body.eventWebhookUrl !== undefined) {
+    if (body.eventWebhookUrl !== null && typeof body.eventWebhookUrl !== 'string') {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Bad Request',
+        message: 'Event webhook URL must be a string or null'
+      })
+    }
+    updates.eventWebhookUrl = body.eventWebhookUrl?.trim() || null
+  }
+
+  if (body.eventWebhookSecret !== undefined) {
+    if (body.eventWebhookSecret !== null && typeof body.eventWebhookSecret !== 'string') {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Bad Request',
+        message: 'Event webhook secret must be a string or null'
+      })
+    }
+    updates.eventWebhookSecret = body.eventWebhookSecret?.trim() || null
+  }
+
+  if (body.eventWebhookEvents !== undefined) {
+    if (body.eventWebhookEvents !== null && !Array.isArray(body.eventWebhookEvents)) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Bad Request',
+        message: 'Event webhook events must be an array of strings or null'
+      })
+    }
+    if (Array.isArray(body.eventWebhookEvents)) {
+      const cleaned = body.eventWebhookEvents
+        .filter((v: unknown) => typeof v === 'string')
+        .map((v: string) => v.trim())
+        .filter(Boolean)
+      updates.eventWebhookEvents = cleaned.length ? JSON.stringify(cleaned) : null
+    } else {
+      updates.eventWebhookEvents = null
+    }
   }
 
   // Check if there are any updates

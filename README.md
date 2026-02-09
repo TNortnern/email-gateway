@@ -223,6 +223,30 @@ Security:
 - Set `BREVO_WEBHOOK_TOKEN` and include it in the webhook URL query string.
 - Optionally add IP allowlisting at your edge for extra protection.
 
+## Per-App Event Forwarding (Recommended)
+
+If you want your application to react to opens/clicks (for example, "invoice email opened"), configure an **event webhook per API key** in the admin UI.
+
+When provider events arrive, the gateway:
+1. Uses its system tags to map the event back to the correct `app_key_id`
+2. Persists the event in `email_events`
+3. Forwards the event to the configured webhook URL for that API key (if set)
+
+### Webhook Delivery
+
+If an API key has:
+- `eventWebhookUrl` set
+- `eventWebhookSecret` set
+
+Then the gateway will `POST` a JSON payload to that URL with headers:
+- `X-Email-Gateway-Timestamp`: ISO timestamp
+- `X-Email-Gateway-Signature`: HMAC SHA256 hex of `${timestamp}.${rawBody}` using the secret
+- `X-Email-Gateway-Event`: normalized event type (ex: `opened`, `clicked`, `delivered`, `hard_bounce`, `soft_bounce`)
+
+Notes:
+- Leave `eventWebhookEvents` empty to forward all events, or set a list to filter.
+- `opened` is de-duped to only forward the first open per message.
+
 ## Admin UI
 
 ### Login

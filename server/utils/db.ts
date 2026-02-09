@@ -65,6 +65,9 @@ export const dbOps = {
       name?: string
       defaultFromEmail?: string | null
       defaultFromName?: string | null
+      eventWebhookUrl?: string | null
+      eventWebhookSecret?: string | null
+      eventWebhookEvents?: string | null
     }
   ): Promise<AppKey | undefined> {
     const [updatedKey] = await db

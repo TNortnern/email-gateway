@@ -166,6 +166,43 @@
               />
             </div>
 
+            <div class="pt-2 border-t border-border/60">
+              <p class="text-sm font-semibold mb-3">Event Webhook (Optional)</p>
+
+              <div class="space-y-4">
+                <div>
+                  <label class="text-sm font-medium block mb-2">Webhook URL</label>
+                  <Input
+                    v-model="createForm.eventWebhookUrl"
+                    placeholder="https://yourapp.com/webhooks/email-gateway"
+                  />
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    If set, email open/click/delivery events will be forwarded to this URL for this API key.
+                  </p>
+                </div>
+
+                <div>
+                  <label class="text-sm font-medium block mb-2">Webhook Secret</label>
+                  <Input
+                    v-model="createForm.eventWebhookSecret"
+                    type="password"
+                    placeholder="Used to sign webhook requests"
+                  />
+                </div>
+
+                <div>
+                  <label class="text-sm font-medium block mb-2">Events</label>
+                  <Input
+                    v-model="createForm.eventWebhookEvents"
+                    placeholder="opened, clicked, delivered"
+                  />
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    Comma-separated. Leave blank to forward all events.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div v-if="createError" class="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
               {{ createError }}
             </div>
@@ -263,6 +300,49 @@
               />
             </div>
 
+            <div class="pt-2 border-t border-border/60">
+              <p class="text-sm font-semibold mb-3">Event Webhook (Optional)</p>
+
+              <div class="space-y-4">
+                <div>
+                  <label class="text-sm font-medium block mb-2">Webhook URL</label>
+                  <Input
+                    v-model="editForm.eventWebhookUrl"
+                    placeholder="https://yourapp.com/webhooks/email-gateway"
+                  />
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    If set, events will be forwarded for this API key only.
+                  </p>
+                </div>
+
+                <div>
+                  <label class="text-sm font-medium block mb-2">Webhook Secret</label>
+                  <Input
+                    v-model="editForm.eventWebhookSecret"
+                    type="password"
+                    placeholder="Set a new secret to rotate (leave blank to keep current)"
+                  />
+                  <div class="mt-2 flex items-center gap-2">
+                    <input id="clearSecret" type="checkbox" v-model="clearEventWebhookSecret" class="h-4 w-4" />
+                    <label for="clearSecret" class="text-xs text-muted-foreground">
+                      Clear secret (disables forwarding until set again)
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="text-sm font-medium block mb-2">Events</label>
+                  <Input
+                    v-model="editForm.eventWebhookEvents"
+                    placeholder="opened, clicked, delivered"
+                  />
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    Comma-separated. Leave blank to forward all events.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div v-if="editError" class="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
               {{ editError }}
             </div>
@@ -304,14 +384,22 @@ const editingKey = ref<any>(null)
 const createForm = ref({
   name: '',
   defaultFromEmail: '',
-  defaultFromName: ''
+  defaultFromName: '',
+  eventWebhookUrl: '',
+  eventWebhookSecret: '',
+  eventWebhookEvents: ''
 })
 
 const editForm = ref({
   name: '',
   defaultFromEmail: '',
-  defaultFromName: ''
+  defaultFromName: '',
+  eventWebhookUrl: '',
+  eventWebhookSecret: '',
+  eventWebhookEvents: ''
 })
+
+const clearEventWebhookSecret = ref(false)
 
 const { data: keysData, pending, refresh } = useFetch('/api/internal/app-keys')
 
@@ -343,7 +431,12 @@ const createKey = async () => {
         name: createForm.value.name,
         defaultFromEmail: createForm.value.defaultFromEmail || undefined,
         defaultFromName: createForm.value.defaultFromName || undefined,
-        tags: tags.length > 0 ? tags : undefined
+        tags: tags.length > 0 ? tags : undefined,
+        eventWebhookUrl: createForm.value.eventWebhookUrl || undefined,
+        eventWebhookSecret: createForm.value.eventWebhookSecret || undefined,
+        eventWebhookEvents: createForm.value.eventWebhookEvents
+          ? createForm.value.eventWebhookEvents.split(',').map(t => t.trim()).filter(Boolean)
+          : undefined
       }
     })
 
@@ -380,7 +473,10 @@ const closeCreateModal = () => {
   createForm.value = {
     name: '',
     defaultFromEmail: '',
-    defaultFromName: ''
+    defaultFromName: '',
+    eventWebhookUrl: '',
+    eventWebhookSecret: '',
+    eventWebhookEvents: ''
   }
   tagsInput.value = ''
   createError.value = ''
@@ -392,9 +488,13 @@ const openEditModal = (key: any) => {
   editForm.value = {
     name: key.name,
     defaultFromEmail: key.defaultFromEmail || '',
-    defaultFromName: key.defaultFromName || ''
+    defaultFromName: key.defaultFromName || '',
+    eventWebhookUrl: key.eventWebhookUrl || '',
+    eventWebhookSecret: '',
+    eventWebhookEvents: (key.eventWebhookEvents || []).join(', ')
   }
   editError.value = ''
+  clearEventWebhookSecret.value = false
   showEditModal.value = true
 }
 
@@ -404,9 +504,13 @@ const closeEditModal = () => {
   editForm.value = {
     name: '',
     defaultFromEmail: '',
-    defaultFromName: ''
+    defaultFromName: '',
+    eventWebhookUrl: '',
+    eventWebhookSecret: '',
+    eventWebhookEvents: ''
   }
   editError.value = ''
+  clearEventWebhookSecret.value = false
 }
 
 const saveEdit = async () => {
@@ -416,13 +520,25 @@ const saveEdit = async () => {
   editError.value = ''
 
   try {
+    const body: any = {
+      name: editForm.value.name,
+      defaultFromEmail: editForm.value.defaultFromEmail || null,
+      defaultFromName: editForm.value.defaultFromName || null,
+      eventWebhookUrl: editForm.value.eventWebhookUrl || null,
+      eventWebhookEvents: editForm.value.eventWebhookEvents
+        ? editForm.value.eventWebhookEvents.split(',').map(t => t.trim()).filter(Boolean)
+        : null
+    }
+
+    if (clearEventWebhookSecret.value) {
+      body.eventWebhookSecret = null
+    } else if (editForm.value.eventWebhookSecret.trim().length > 0) {
+      body.eventWebhookSecret = editForm.value.eventWebhookSecret.trim()
+    }
+
     const { data, error } = await useFetch(`/api/internal/app-keys/${editingKey.value.id}`, {
       method: 'PATCH',
-      body: {
-        name: editForm.value.name,
-        defaultFromEmail: editForm.value.defaultFromEmail || null,
-        defaultFromName: editForm.value.defaultFromName || null
-      }
+      body
     })
 
     if (error.value) {

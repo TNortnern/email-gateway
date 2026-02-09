@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { name, defaultFromName, defaultFromEmail, tags } = parseResult.data
+  const { name, defaultFromName, defaultFromEmail, tags, eventWebhookUrl, eventWebhookSecret, eventWebhookEvents } = parseResult.data
 
   // Generate the new API key
   const apiKey = generateAppKey()
@@ -44,6 +44,9 @@ export default defineEventHandler(async (event) => {
     defaultFromName: defaultFromName || null,
     defaultFromEmail: defaultFromEmail || null,
     tags: tags ? JSON.stringify(tags) : null,
+    eventWebhookUrl: eventWebhookUrl || null,
+    eventWebhookSecret: eventWebhookSecret || null,
+    eventWebhookEvents: eventWebhookEvents ? JSON.stringify(eventWebhookEvents) : null,
     revokedAt: null
   })
 
@@ -58,6 +61,8 @@ export default defineEventHandler(async (event) => {
     defaultFromName: defaultFromName || null,
     defaultFromEmail: defaultFromEmail || null,
     tags: tags || [],
+    eventWebhookUrl: eventWebhookUrl || null,
+    eventWebhookEvents: eventWebhookEvents || [],
     message: 'Save this API key now. It will not be shown again.'
   }
 })

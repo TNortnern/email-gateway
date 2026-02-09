@@ -69,7 +69,10 @@ export const createAppKeySchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
   defaultFromName: z.string().optional(),
   defaultFromEmail: z.string().email().optional(),
-  tags: z.array(z.string()).optional()
+  tags: z.array(z.string()).optional(),
+  eventWebhookUrl: z.string().url().optional(),
+  eventWebhookSecret: z.string().min(8).max(255).optional(),
+  eventWebhookEvents: z.array(z.string()).optional()
 })
 
 // Types derived from schemas

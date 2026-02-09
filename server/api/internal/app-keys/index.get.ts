@@ -24,6 +24,9 @@ export default defineEventHandler(async (event) => {
       defaultFromName: k.defaultFromName,
       defaultFromEmail: k.defaultFromEmail,
       tags: k.tags ? JSON.parse(k.tags) : [],
+      eventWebhookUrl: k.eventWebhookUrl || null,
+      eventWebhookEvents: k.eventWebhookEvents ? JSON.parse(k.eventWebhookEvents) : [],
+      hasEventWebhookSecret: !!k.eventWebhookSecret,
       isRevoked: !!k.revokedAt,
       revokedAt: k.revokedAt,
       createdAt: k.createdAt
