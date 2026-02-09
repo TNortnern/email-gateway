@@ -6,6 +6,8 @@ import { processEmailHtml } from '~/server/utils/email-templates'
 
 // Max attachment size: 20MB total
 const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
+const SYSTEM_TAG_APP_KEY_PREFIX = 'egw:appKey:'
+const SYSTEM_TAG_MESSAGE_PREFIX = 'egw:message:'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
@@ -93,6 +95,9 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // Create message record id before sending so we can tag + track provider webhooks.
+  const messageRecordId = generateId()
+
   const brevoRequest: BrevoSendRequest = {
     sender: {
       email: fromEmail,
@@ -107,15 +112,19 @@ export default defineEventHandler(async (event) => {
     textContent: request.text,
     templateId: request.templateId,
     params: request.params,
-    tags: request.tags,
+    // Always tag messages so account-wide webhooks can be scoped back to an app key + message record.
+    tags: Array.from(new Set([
+      ...(request.tags || []),
+      `${SYSTEM_TAG_APP_KEY_PREFIX}${appKeyRecord.id}`,
+      `${SYSTEM_TAG_MESSAGE_PREFIX}${messageRecordId}`,
+    ])),
     attachment: request.attachments?.map(att => ({
       name: att.name,
       content: att.contentBase64
     }))
   }
 
-  // Create message record
-  const messageRecordId = generateId()
+  const finalTags = brevoRequest.tags
 
   const newMessage = await db.insertMessage({
     id: messageRecordId,
@@ -128,7 +137,7 @@ export default defineEventHandler(async (event) => {
     fromName: fromName || null,
     subject: request.subject || null,
     templateId: request.templateId || null,
-    tags: request.tags ? JSON.stringify(request.tags) : null,
+    tags: finalTags?.length ? JSON.stringify(finalTags) : null,
     status: 'pending',
     providerResponse: null,
     idempotencyKey: request.idempotencyKey || null

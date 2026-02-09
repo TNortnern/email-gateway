@@ -1,9 +1,9 @@
 import { eq, and, desc, lt, sql } from 'drizzle-orm'
 import { db } from '../db'
-import { appKeys, messages, type AppKey, type Message, type InsertAppKey, type InsertMessage } from '../db/schema'
+import { appKeys, messages, emailEvents, type AppKey, type Message, type EmailEvent, type InsertAppKey, type InsertMessage, type InsertEmailEvent } from '../db/schema'
 
 // Re-export types for compatibility
-export type { AppKey, Message }
+export type { AppKey, Message, EmailEvent }
 
 // Database operations
 export const dbOps = {
@@ -174,6 +174,34 @@ export const dbOps = {
       .returning()
 
     return result.length > 0
+  },
+
+  // Email event operations
+  async insertEmailEvent(event: Omit<InsertEmailEvent, 'createdAt'>) {
+    const [newEvent] = await db
+      .insert(emailEvents)
+      .values({
+        ...event,
+        createdAt: new Date().toISOString(),
+      })
+      .returning()
+
+    return newEvent
+  },
+
+  async getEmailEventsByMessageRecordId(
+    appKeyId: string,
+    messageRecordId: string,
+    limit: number = 200
+  ): Promise<EmailEvent[]> {
+    const events = await db
+      .select()
+      .from(emailEvents)
+      .where(and(eq(emailEvents.appKeyId, appKeyId), eq(emailEvents.messageRecordId, messageRecordId)))
+      .orderBy(desc(emailEvents.createdAt))
+      .limit(limit)
+
+    return events
   },
 }
 

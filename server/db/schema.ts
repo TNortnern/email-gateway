@@ -40,8 +40,29 @@ export const messages = pgTable('messages', {
   uniqueIdempotency: unique('unique_app_key_idempotency').on(table.appKeyId, table.idempotencyKey),
 }))
 
+// Email events (delivery/open/click/bounce/etc) table
+export const emailEvents = pgTable('email_events', {
+  id: text('id').primaryKey(),
+  appKeyId: text('app_key_id').notNull().references(() => appKeys.id),
+  messageRecordId: text('message_record_id').notNull().references(() => messages.id),
+  providerMessageId: text('provider_message_id'),
+  eventType: text('event_type').notNull(),
+  occurredAt: timestamp('occurred_at', { mode: 'string' }),
+  recipientEmail: text('recipient_email'),
+  ip: text('ip'),
+  userAgent: text('user_agent'),
+  providerPayload: text('provider_payload').notNull(), // JSON string
+  createdAt: timestamp('created_at', { mode: 'string' }).notNull().defaultNow(),
+}, (table) => ({
+  appKeyIdIdx: index('idx_email_events_app_key_id').on(table.appKeyId),
+  messageRecordIdIdx: index('idx_email_events_message_record_id').on(table.messageRecordId),
+  occurredAtIdx: index('idx_email_events_occurred_at').on(table.occurredAt),
+}))
+
 // TypeScript types inferred from schema
 export type AppKey = typeof appKeys.$inferSelect
 export type InsertAppKey = typeof appKeys.$inferInsert
 export type Message = typeof messages.$inferSelect
 export type InsertMessage = typeof messages.$inferInsert
+export type EmailEvent = typeof emailEvents.$inferSelect
+export type InsertEmailEvent = typeof emailEvents.$inferInsert

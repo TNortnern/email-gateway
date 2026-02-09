@@ -19,6 +19,7 @@ export default defineNuxtConfig({
     // Server-only secrets
     brevoApiKey: process.env.BREVO_API_KEY || '',
     adminPassword: process.env.ADMIN_PASSWORD || 'admin123',
+    brevoWebhookToken: process.env.BREVO_WEBHOOK_TOKEN || '',
 
     // Public config (exposed to client)
     public: {

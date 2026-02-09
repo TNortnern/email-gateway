@@ -197,6 +197,32 @@ Get detailed information about a specific message.
 }
 ```
 
+#### List Message Events (opens/clicks/etc)
+
+```http
+GET /v1/messages/:messageId/events?limit=200
+```
+
+Returns tracked provider events for the message (for example: delivered, opened, clicked, bounced).
+
+## Provider Webhooks (Brevo)
+
+Brevo webhooks are account-wide, so this gateway **auto-tags** every outbound email with:
+- `egw:appKey:{appKeyId}` (which app key sent it)
+- `egw:message:{messageRecordId}` (internal message record id)
+
+That lets the webhook handler ignore unrelated emails from the same Brevo account and route events back to the right app key and message.
+
+### Webhook Endpoint
+
+```http
+POST /api/webhooks/brevo?token=YOUR_SECRET
+```
+
+Security:
+- Set `BREVO_WEBHOOK_TOKEN` and include it in the webhook URL query string.
+- Optionally add IP allowlisting at your edge for extra protection.
+
 ## Admin UI
 
 ### Login
